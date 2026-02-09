@@ -1,263 +1,101 @@
 import 'package:flutter/material.dart';
 import '../../../db/database_helper.dart';
+import '../../../screens/detail_screen.dart';
 
 class KatalogTab extends StatefulWidget {
   final String role;
   final Function(Map<String, dynamic>) onAddToCart;
-  final bool hasShownPromo;
-  final VoidCallback onPromoShown;
 
-  const KatalogTab({
-    super.key,
-    required this.role,
-    required this.onAddToCart,
-    required this.hasShownPromo,
-    required this.onPromoShown,
-  });
+  const KatalogTab({super.key, required this.role, required this.onAddToCart});
 
   @override
-  KatalogTabState createState() => KatalogTabState();
+  State<KatalogTab> createState() => _KatalogTabState();
 }
 
-class KatalogTabState extends State<KatalogTab> {
+class _KatalogTabState extends State<KatalogTab> {
   List<Map<String, dynamic>> _products = [];
-  bool _isPromoActive = false;
 
   @override
   void initState() {
     super.initState();
-    refreshData();
-
-    // Munculkan promo hanya untuk user
-    if (widget.role.toLowerCase() != 'admin' && !widget.hasShownPromo) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showPromoPopup();
-        widget.onPromoShown();
-      });
-    }
+    _refreshData();
   }
 
-  Future<void> refreshData() async {
+  @override
+  void didUpdateWidget(covariant KatalogTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _refreshData();
+  }
+
+  Future<void> _refreshData() async {
     final data = await DatabaseHelper.instance.queryAllProducts();
-    if (mounted) {
-      setState(() => _products = data);
+    if (!mounted) return;
+    setState(() => _products = data);
+  }
+
+  // ======================
+  // IMAGE HANDLER
+  // ======================
+  Widget _buildProductImage(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return const Icon(Icons.image_not_supported, size: 80);
     }
+
+    if (imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 80),
+      );
+    }
+
+    return Image.asset(imageUrl, fit: BoxFit.cover);
   }
 
-  void _showPromoPopup() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(15),
-              child: Image.asset(
-                "assets/images/PROMO.png",
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.card_giftcard,
-                  size: 80,
-                  color: Colors.orange,
-                ),
-              ),
-            ),
-            const SizedBox(height: 15),
-            const Text(
-              "PROMO DISKON 10%",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            const Text("Klaim sekarang untuk harga lebih hemat!"),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("TIDAK"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            onPressed: () {
-              setState(() => _isPromoActive = true);
-              Navigator.pop(ctx);
-            },
-            child: const Text("KLAIM", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDelete(int id, String name) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Hapus Produk"),
-        content: Text("Yakin ingin menghapus '$name'?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("BATAL"),
-          ),
-          TextButton(
-            onPressed: () async {
-              await DatabaseHelper.instance.deleteProduct(id);
-              if (!mounted) return;
-              Navigator.of(context).pop();
-              refreshData();
-            },
-            child: const Text("HAPUS", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditDialog(Map<String, dynamic> product) {
-    final nameCtrl = TextEditingController(text: product['name']);
-    final priceCtrl = TextEditingController(text: product['price'].toString());
-    final imgCtrl = TextEditingController(text: product['image']);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 20,
-          right: 20,
-          top: 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Edit Produk",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: "Nama Produk",
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: priceCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Harga",
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: imgCtrl,
-              decoration: const InputDecoration(
-                labelText: "URL Gambar",
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              onPressed: () async {
-                await DatabaseHelper.instance.updateProduct(product['id'], {
-                  'name': nameCtrl.text,
-                  'price': int.parse(priceCtrl.text),
-                  'image': imgCtrl.text,
-                });
-                if (!mounted) return;
-                Navigator.of(context).pop();
-                refreshData();
-              },
-              child: const Text(
-                "SIMPAN PERUBAHAN",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
+  // ======================
+  // USER QTY POPUP
+  // ======================
   void _showQtyDialog(Map<String, dynamic> product) {
-    int selectedQty = 1;
-    int basePrice = int.tryParse(product['price'].toString()) ?? 0;
-    int currentPrice = (!isAdminGlobal && _isPromoActive)
-        ? (basePrice * 0.9).toInt()
-        : basePrice;
+    int qty = 1;
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text("Beli ${product['name']}"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text(product['name']),
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text("Tentukan jumlah pesanan:"),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle, color: Colors.red),
-                    onPressed: () {
-                      if (selectedQty > 1) setDialogState(() => selectedQty--);
-                    },
-                  ),
-                  Text(
-                    "$selectedQty",
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle, color: Colors.green),
-                    onPressed: () => setDialogState(() => selectedQty++),
-                  ),
-                ],
+              IconButton(
+                onPressed: () {
+                  if (qty > 1) setLocal(() => qty--);
+                },
+                icon: const Icon(Icons.remove),
               ),
-              Text(
-                "Total: Rp ${currentPrice * selectedQty}",
-                style: const TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
-                ),
+              Text(qty.toString(), style: const TextStyle(fontSize: 18)),
+              IconButton(
+                onPressed: () => setLocal(() => qty++),
+                icon: const Icon(Icons.add),
               ),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(ctx),
               child: const Text("BATAL"),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
               onPressed: () {
                 widget.onAddToCart({
+                  'id': product['id'],
                   'name': product['name'],
-                  'price': currentPrice,
-                  'qty': selectedQty,
-                  'total': currentPrice * selectedQty,
+                  'price': product['price'],
+                  'qty': qty,
+                  'total': product['price'] * qty,
                 });
-                Navigator.pop(context);
+                Navigator.pop(ctx);
               },
-              child: const Text(
-                "TAMBAH",
-                style: TextStyle(color: Colors.white),
-              ),
+              child: const Text("TAMBAH"),
             ),
           ],
         ),
@@ -265,178 +103,74 @@ class KatalogTabState extends State<KatalogTab> {
     );
   }
 
-  bool get isAdminGlobal => widget.role.toLowerCase() == 'admin';
-
+  // ======================
+  // UI
+  // ======================
   @override
   Widget build(BuildContext context) {
+    final isAdmin = widget.role == 'admin';
+
     if (_products.isEmpty) {
-      return const Center(child: Text("Katalog produk kosong"));
+      return const Center(child: Text("Produk kosong"));
     }
 
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.58,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        childAspectRatio: 0.7,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
       ),
       itemCount: _products.length,
-      itemBuilder: (context, index) {
-        final p = _products[index];
-        int price = int.tryParse(p['price'].toString()) ?? 0;
+      itemBuilder: (context, i) {
+        final product = _products[i];
 
-        bool showPromo = !isAdminGlobal && _isPromoActive;
-        int displayPrice = showPromo ? (price * 0.9).toInt() : price;
-
-        return Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => DetailScreen(product: product)),
+            );
+          },
+          child: Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(12),
                     ),
+                    child: _buildProductImage(product['image']),
                   ),
-                  child: p['image'] != null && p['image'].toString().isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(12),
-                          ),
-                          child: Image.network(
-                            p['image'],
-                            fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => const Icon(
-                              Icons.image,
-                              size: 50,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        )
-                      : const Icon(Icons.image, color: Colors.grey),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(10.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      p['name'] ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-
-                    // --- BAGIAN HARGA CORET ---
-                    if (showPromo) ...[
-                      Row(
-                        children: [
-                          Text(
-                            "Rp $price",
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey,
-                              decoration:
-                                  TextDecoration.lineThrough, // EFEK CORET
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade100,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              "10%",
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    children: [
+                      Text(
+                        product['name'],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
+                      Text("Rp ${product['price']}"),
+                      const SizedBox(height: 6),
+                      isAdmin
+                          ? const SizedBox()
+                          : ElevatedButton(
+                              onPressed: () => _showQtyDialog(product),
+                              child: const Text("Beli"),
+                            ),
                     ],
-
-                    Text(
-                      "Rp $displayPrice",
-                      style: const TextStyle(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-
-                    // --- SELESAI BAGIAN HARGA CORET ---
-                    const SizedBox(height: 10),
-                    if (isAdminGlobal)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                padding: EdgeInsets.zero,
-                              ),
-                              onPressed: () => _showEditDialog(p),
-                              child: const Icon(
-                                Icons.edit,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                padding: EdgeInsets.zero,
-                              ),
-                              onPressed: () =>
-                                  _confirmDelete(p['id'], p['name']),
-                              child: const Icon(
-                                Icons.delete,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                          ),
-                          onPressed: () => _showQtyDialog(p),
-                          child: const Text(
-                            "Beli",
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

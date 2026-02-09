@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'tab/katalog_tab.dart';
 import 'tab/keranjang_tab.dart';
 import 'tab/profil_tab.dart';
@@ -14,21 +15,95 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  bool _hasShownPromo = false;
   final List<Map<String, dynamic>> _cart = [];
 
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _priceCtrl = TextEditingController();
   final TextEditingController _imgCtrl = TextEditingController();
 
-  final GlobalKey<KatalogTabState> _katalogKey = GlobalKey<KatalogTabState>();
-
   late String userRole;
+  bool _promoChecked = false;
 
   @override
   void initState() {
     super.initState();
     userRole = widget.role.toLowerCase();
+    _checkPromo();
+  }
+
+  // CEK PROMO SAAT MASUK HOME
+  Future<void> _checkPromo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = prefs.getString('username') ?? "";
+
+    if (username.isEmpty) return;
+
+    final isFirst = await DatabaseHelper.instance.isFirstPurchase(username);
+
+    if (!mounted) return;
+
+    if (isFirst && !_promoChecked && userRole != 'admin') {
+      _promoChecked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showPromoPopup();
+      });
+    }
+  }
+
+  // POPUP PROMO
+  void _showPromoPopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              "assets/images/PROMO.png",
+              height: 150,
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.card_giftcard, size: 80),
+            ),
+            const SizedBox(height: 15),
+            const Text(
+              "PROMO KHUSUS USER BARU",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 5),
+            const Text("Diskon 10% untuk pembelian pertama"),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+            },
+            child: const Text("NANTI"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('hasPromo', true);
+
+              if (!mounted) return;
+              Navigator.pop(ctx);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Promo aktif! 🎉"),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            child: const Text("KLAIM", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _tambahKeKeranjang(Map<String, dynamic> item) {
@@ -108,12 +183,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     'price': int.parse(_priceCtrl.text),
                     'image': _imgCtrl.text,
                   });
-
                   if (!mounted) return;
                   Navigator.pop(context);
-
-                  _katalogKey.currentState?.refreshData();
-
                   setState(() {
                     _selectedIndex = 0;
                   });
@@ -139,13 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isAdmin = userRole == 'admin';
 
     final List<Widget> pages = [
-      KatalogTab(
-        key: _katalogKey,
-        role: userRole,
-        onAddToCart: _tambahKeKeranjang,
-        hasShownPromo: _hasShownPromo,
-        onPromoShown: () => setState(() => _hasShownPromo = true),
-      ),
+      KatalogTab(role: userRole, onAddToCart: _tambahKeKeranjang),
       isAdmin
           ? const Center(
               child: Text(

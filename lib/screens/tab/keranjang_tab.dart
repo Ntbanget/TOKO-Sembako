@@ -14,7 +14,7 @@ class KeranjangTab extends StatefulWidget {
 }
 
 class _KeranjangTabState extends State<KeranjangTab> {
-  // Fungsi untuk menampilkan Pop-up Peringatan
+  // POPUP PROFIL BELUM LENGKAP
   void _showProfileWarning() {
     showDialog(
       context: context,
@@ -27,7 +27,7 @@ class _KeranjangTabState extends State<KeranjangTab> {
           ],
         ),
         content: const Text(
-          "Silakan lengkapi Nama dan Alamat Anda di menu Profil terlebih dahulu sebelum melakukan checkout.",
+          "Silakan lengkapi Nama dan Alamat Anda di menu Profil sebelum checkout.",
         ),
         actions: [
           TextButton(
@@ -39,62 +39,91 @@ class _KeranjangTabState extends State<KeranjangTab> {
     );
   }
 
-  void _checkoutWA() async {
+  // CHECKOUT VIA WHATSAPP
+  Future<void> _checkoutWA() async {
     if (widget.cart.isEmpty) return;
 
-    // 1. Ambil Username
     final prefs = await SharedPreferences.getInstance();
-    String username = prefs.getString('username') ?? "";
+    final String username = prefs.getString('username') ?? "";
 
-    // 2. Ambil Data Profil
+    // Ambil data profil
     final profile = await DatabaseHelper.instance.getProfile(username);
+    final String namaLengkap = (profile?['full_name'] ?? "").trim();
+    final String alamat = (profile?['address'] ?? "").trim();
 
-    // Ambil data dan bersihkan spasi kosong
-    String namaLengkap = (profile?['full_name'] ?? "").trim();
-    String alamat = (profile?['address'] ?? "").trim();
-
-    // 3. VALIDASI: Jika nama atau alamat kosong, munculkan pop-up dan hentikan proses
+    // Validasi profil
     if (namaLengkap.isEmpty || alamat.isEmpty) {
       _showProfileWarning();
       return;
     }
 
-    // 4. Susun Pesan WhatsApp (Jika validasi lolos)
-    String daftar = "🛒 *PESANAN BARU - TOKO KITA*\n";
-    daftar += "------------------------------------------\n";
-    daftar += "*Data Pengirim:*\n";
-    daftar += "👤 Nama: $namaLengkap\n";
-    daftar += "📍 Alamat: $alamat\n";
-    daftar += "------------------------------------------\n\n";
-    daftar += "*Daftar Belanja:*\n";
+    // CEK PROMO
+    bool hasPromo = prefs.getBool('hasPromo') ?? false;
 
-    int total = 0;
+    // HITUNG TOTAL
+    int subtotal = 0;
     for (var item in widget.cart) {
-      daftar += "• ${item['name']} (x${item['qty']}) = Rp ${item['total']}\n";
-      total += item['total'] as int;
+      subtotal += item['total'] as int;
     }
 
-    daftar += "\n💰 *TOTAL BAYAR: Rp $total*";
-    daftar += "\n\nMohon segera diproses ya Admin, terima kasih!";
+    int diskon = 0;
+    if (hasPromo) {
+      diskon = (subtotal * 0.1).toInt(); // 10% dari TOTAL
+    }
+
+    final int totalBayar = subtotal - diskon;
+
+    // SUSUN PESAN WA
+    String pesan = "🛒 *PESANAN BARU - TOKO KITA*\n";
+    pesan += "----------------------------------\n";
+    pesan += "*Data Pembeli:*\n";
+    pesan += "👤 Nama: $namaLengkap\n";
+    pesan += "📍 Alamat: $alamat\n";
+    pesan += "----------------------------------\n\n";
+    pesan += "*Daftar Belanja:*\n";
+
+    for (var item in widget.cart) {
+      pesan += "• ${item['name']} (x${item['qty']}) = Rp ${item['total']}\n";
+    }
+
+    pesan += "\nSubtotal: Rp $subtotal";
+
+    if (diskon > 0) {
+      pesan += "\n🎉 *Diskon 10%: -Rp $diskon*";
+    }
+
+    pesan += "\n💰 *TOTAL BAYAR: Rp $totalBayar*";
+    pesan += "\n\nTerima kasih 🙏";
 
     final url = Uri.parse(
-      "https://wa.me/6285642447207?text=${Uri.encodeComponent(daftar)}",
+      "https://wa.me/6285642447207?text=${Uri.encodeComponent(pesan)}",
     );
 
+    // BUKA WHATSAPP
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Gagal membuka WhatsApp")));
+
+      // 🔒 KUNCI PROMO PERMANEN
+      if (hasPromo) {
+        await DatabaseHelper.instance.setPurchased(username);
+        await prefs.setBool('hasPromo', false);
       }
+
+      // KOSONGKAN KERANJANG
+      setState(() {
+        widget.cart.clear();
+      });
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Gagal membuka WhatsApp")));
     }
   }
 
+  // UI KERANJANG
   @override
   Widget build(BuildContext context) {
-    // ... Bagian build tetap sama seperti kode Anda sebelumnya ...
     return Column(
       children: [
         Expanded(
@@ -105,7 +134,7 @@ class _KeranjangTabState extends State<KeranjangTab> {
                   itemBuilder: (context, i) => Card(
                     margin: const EdgeInsets.symmetric(
                       horizontal: 15,
-                      vertical: 5,
+                      vertical: 6,
                     ),
                     child: ListTile(
                       title: Text(

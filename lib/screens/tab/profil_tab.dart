@@ -28,24 +28,25 @@ class _ProfilTabState extends State<ProfilTab> {
     super.dispose();
   }
 
-  void _loadData() async {
+  Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
+    final savedUsername = prefs.getString('username') ?? "";
+
+    final profile = await DatabaseHelper.instance.getProfile(savedUsername);
+
     if (!mounted) return;
 
-    setState(() => username = prefs.getString('username') ?? "");
-    final profile = await DatabaseHelper.instance.getProfile(username);
-
-    if (profile != null && mounted) {
-      setState(() {
-        _nameCtrl.text = profile['full_name'] ?? "";
-        _addrCtrl.text = profile['address'] ?? "";
-      });
-    }
+    setState(() {
+      username = savedUsername;
+      _nameCtrl.text = profile?['full_name'] ?? "";
+      _addrCtrl.text = profile?['address'] ?? "";
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final bool isAdmin = widget.role.toLowerCase() == 'admin';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(25),
       child: Column(
@@ -90,12 +91,8 @@ class _ProfilTabState extends State<ProfilTab> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
             ),
             onPressed: () async {
-              // --- SOLUSI LINTER 1: Simpan messenger ke variabel sebelum await ---
               final messenger = ScaffoldMessenger.of(context);
 
               await DatabaseHelper.instance.saveProfile({
@@ -106,7 +103,6 @@ class _ProfilTabState extends State<ProfilTab> {
 
               if (!mounted) return;
 
-              // Gunakan variabel messenger yang sudah disimpan
               messenger.showSnackBar(
                 const SnackBar(
                   content: Text("Profil Berhasil Diperbarui!"),
@@ -127,14 +123,12 @@ class _ProfilTabState extends State<ProfilTab> {
           const SizedBox(height: 10),
           TextButton.icon(
             onPressed: () async {
-              // --- SOLUSI LINTER 2: Simpan navigator ke variabel sebelum await ---
               final navigator = Navigator.of(context);
               final prf = await SharedPreferences.getInstance();
               await prf.clear();
 
               if (!mounted) return;
 
-              // Gunakan variabel navigator yang sudah disimpan
               navigator.pushReplacementNamed('/login');
             },
             icon: const Icon(Icons.logout, color: Colors.red),
