@@ -33,27 +33,38 @@ class _KatalogTabState extends State<KatalogTab> {
   }
 
   // ======================
-  // IMAGE HANDLER (AMAN)
+  // 🔥 IMAGE HANDLER (FINAL FIX – NO CACHE BUG)
   // ======================
   Widget _buildProductImage(String? imageUrl) {
-    if (imageUrl == null || imageUrl.trim().isEmpty) {
-      return const Icon(Icons.image_not_supported, size: 80);
+    final url = imageUrl?.trim() ?? '';
+
+    if (url.isEmpty) {
+      return const Center(child: Icon(Icons.image_not_supported, size: 80));
     }
 
-    if (imageUrl.startsWith('http')) {
+    if (url.startsWith('http')) {
       return Image.network(
-        imageUrl,
+        url,
+        key: ValueKey(url + DateTime.now().millisecondsSinceEpoch.toString()),
         fit: BoxFit.cover,
         width: double.infinity,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 80),
-        loadingBuilder: (c, child, progress) {
+        loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
           return const Center(child: CircularProgressIndicator());
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(child: Icon(Icons.broken_image, size: 80));
         },
       );
     }
 
-    return Image.asset(imageUrl, fit: BoxFit.cover, width: double.infinity);
+    return Image.asset(
+      url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      errorBuilder: (_, __, ___) =>
+          const Center(child: Icon(Icons.broken_image, size: 80)),
+    );
   }
 
   // ======================
@@ -107,7 +118,7 @@ class _KatalogTabState extends State<KatalogTab> {
                   'id': product['id'],
                   'name': product['name'],
                   'price': product['price'],
-                  'image': product['image'], // 🔥 FIX
+                  'image': product['image'],
                   'qty': qty,
                   'total': product['price'] * qty,
                 });
@@ -122,12 +133,14 @@ class _KatalogTabState extends State<KatalogTab> {
   }
 
   // ======================
-  // ADMIN EDIT (FIX IMAGE)
+  // ADMIN EDIT (IMAGE FIX)
   // ======================
   void _editProduct(Map<String, dynamic> product) {
     final nameCtrl = TextEditingController(text: product['name']);
     final priceCtrl = TextEditingController(text: product['price'].toString());
-    final imageCtrl = TextEditingController(text: product['image'] ?? "");
+    final imageCtrl = TextEditingController(
+      text: product['image']?.toString() ?? '',
+    );
 
     showDialog(
       context: context,
@@ -166,9 +179,9 @@ class _KatalogTabState extends State<KatalogTab> {
           ElevatedButton(
             onPressed: () async {
               await DatabaseHelper.instance.updateProduct(product['id'], {
-                'name': nameCtrl.text,
+                'name': nameCtrl.text.trim(),
                 'price': int.parse(priceCtrl.text),
-                'image': imageCtrl.text, // 🔥 FIX UTAMA
+                'image': imageCtrl.text.trim(),
               });
 
               if (!mounted) return;
@@ -231,9 +244,9 @@ class _KatalogTabState extends State<KatalogTab> {
                   children: [
                     Text(
                       product['name'],
-                      style: const TextStyle(fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text("Rp ${product['price']}"),
                     const SizedBox(height: 6),
