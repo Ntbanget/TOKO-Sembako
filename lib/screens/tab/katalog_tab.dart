@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../db/database_helper.dart';
-import '../../../screens/detail_screen.dart';
 
 class KatalogTab extends StatefulWidget {
   final String role;
@@ -34,7 +33,7 @@ class _KatalogTabState extends State<KatalogTab> {
   }
 
   // ======================
-  // IMAGE HANDLER
+  // 🔥 IMAGE HANDLER (FIX)
   // ======================
   Widget _buildProductImage(String? imageUrl) {
     if (imageUrl == null || imageUrl.isEmpty) {
@@ -45,11 +44,16 @@ class _KatalogTabState extends State<KatalogTab> {
       return Image.network(
         imageUrl,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 80),
+        width: double.infinity,
+        errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 80),
+        loadingBuilder: (c, child, progress) {
+          if (progress == null) return child;
+          return const Center(child: CircularProgressIndicator());
+        },
       );
     }
 
-    return Image.asset(imageUrl, fit: BoxFit.cover);
+    return Image.asset(imageUrl, fit: BoxFit.cover, width: double.infinity);
   }
 
   // ======================
@@ -63,19 +67,32 @@ class _KatalogTabState extends State<KatalogTab> {
       builder: (_) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
           title: Text(product['name']),
-          content: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                onPressed: () {
-                  if (qty > 1) setLocal(() => qty--);
-                },
-                icon: const Icon(Icons.remove),
-              ),
-              Text(qty.toString(), style: const TextStyle(fontSize: 18)),
-              IconButton(
-                onPressed: () => setLocal(() => qty++),
-                icon: const Icon(Icons.add),
+              Text("Harga: Rp ${product['price']}"),
+              const SizedBox(height: 15),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove),
+                    onPressed: () {
+                      if (qty > 1) setLocal(() => qty--);
+                    },
+                  ),
+                  Text(
+                    qty.toString(),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () => setLocal(() => qty++),
+                  ),
+                ],
               ),
             ],
           ),
@@ -104,11 +121,64 @@ class _KatalogTabState extends State<KatalogTab> {
   }
 
   // ======================
+  // ADMIN EDIT
+  // ======================
+  void _editProduct(Map<String, dynamic> product) {
+    final nameCtrl = TextEditingController(text: product['name']);
+    final priceCtrl = TextEditingController(text: product['price'].toString());
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Edit Produk"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(labelText: "Nama"),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: priceCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "Harga"),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("BATAL"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await DatabaseHelper.instance.updateProduct(product['id'], {
+                'name': nameCtrl.text,
+                'price': int.parse(priceCtrl.text),
+              });
+              if (!mounted) return;
+              Navigator.pop(context);
+              _refreshData();
+            },
+            child: const Text("SIMPAN"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteProduct(int id) async {
+    await DatabaseHelper.instance.deleteProduct(id);
+    _refreshData();
+  }
+
+  // ======================
   // UI
   // ======================
   @override
   Widget build(BuildContext context) {
-    final isAdmin = widget.role == 'admin';
+    final bool isAdmin = widget.role == 'admin';
 
     if (_products.isEmpty) {
       return const Center(child: Text("Produk kosong"));
@@ -123,54 +193,61 @@ class _KatalogTabState extends State<KatalogTab> {
         mainAxisSpacing: 10,
       ),
       itemCount: _products.length,
-      itemBuilder: (context, i) {
+      itemBuilder: (_, i) {
         final product = _products[i];
 
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => DetailScreen(product: product)),
-            );
-          },
-          child: Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(12),
+        return Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  child: _buildProductImage(product['image']),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  children: [
+                    Text(
+                      product['name'],
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    child: _buildProductImage(product['image']),
-                  ),
+                    Text("Rp ${product['price']}"),
+                    const SizedBox(height: 6),
+                    isAdmin
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit),
+                                onPressed: () => _editProduct(product),
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.red,
+                                ),
+                                onPressed: () => _deleteProduct(product['id']),
+                              ),
+                            ],
+                          )
+                        : ElevatedButton(
+                            onPressed: () => _showQtyDialog(product),
+                            child: const Text("Beli"),
+                          ),
+                  ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    children: [
-                      Text(
-                        product['name'],
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text("Rp ${product['price']}"),
-                      const SizedBox(height: 6),
-                      isAdmin
-                          ? const SizedBox()
-                          : ElevatedButton(
-                              onPressed: () => _showQtyDialog(product),
-                              child: const Text("Beli"),
-                            ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
