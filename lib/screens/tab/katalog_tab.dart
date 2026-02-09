@@ -33,10 +33,10 @@ class _KatalogTabState extends State<KatalogTab> {
   }
 
   // ======================
-  // 🔥 IMAGE HANDLER (FIX)
+  // IMAGE HANDLER (AMAN)
   // ======================
   Widget _buildProductImage(String? imageUrl) {
-    if (imageUrl == null || imageUrl.isEmpty) {
+    if (imageUrl == null || imageUrl.trim().isEmpty) {
       return const Icon(Icons.image_not_supported, size: 80);
     }
 
@@ -45,7 +45,7 @@ class _KatalogTabState extends State<KatalogTab> {
         imageUrl,
         fit: BoxFit.cover,
         width: double.infinity,
-        errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 80),
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 80),
         loadingBuilder: (c, child, progress) {
           if (progress == null) return child;
           return const Center(child: CircularProgressIndicator());
@@ -57,7 +57,7 @@ class _KatalogTabState extends State<KatalogTab> {
   }
 
   // ======================
-  // USER QTY POPUP
+  // USER BELI
   // ======================
   void _showQtyDialog(Map<String, dynamic> product) {
     int qty = 1;
@@ -107,6 +107,7 @@ class _KatalogTabState extends State<KatalogTab> {
                   'id': product['id'],
                   'name': product['name'],
                   'price': product['price'],
+                  'image': product['image'], // 🔥 FIX
                   'qty': qty,
                   'total': product['price'] * qty,
                 });
@@ -121,30 +122,41 @@ class _KatalogTabState extends State<KatalogTab> {
   }
 
   // ======================
-  // ADMIN EDIT
+  // ADMIN EDIT (FIX IMAGE)
   // ======================
   void _editProduct(Map<String, dynamic> product) {
     final nameCtrl = TextEditingController(text: product['name']);
     final priceCtrl = TextEditingController(text: product['price'].toString());
+    final imageCtrl = TextEditingController(text: product['image'] ?? "");
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Edit Produk"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: "Nama"),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: priceCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Harga"),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: "Nama"),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: priceCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Harga"),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: imageCtrl,
+                decoration: const InputDecoration(
+                  labelText: "URL Gambar",
+                  hintText: "https://...",
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -156,7 +168,9 @@ class _KatalogTabState extends State<KatalogTab> {
               await DatabaseHelper.instance.updateProduct(product['id'], {
                 'name': nameCtrl.text,
                 'price': int.parse(priceCtrl.text),
+                'image': imageCtrl.text, // 🔥 FIX UTAMA
               });
+
               if (!mounted) return;
               Navigator.pop(context);
               _refreshData();
